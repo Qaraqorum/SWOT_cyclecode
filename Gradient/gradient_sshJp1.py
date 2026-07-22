@@ -570,12 +570,35 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Daskを使わずに勾配計算する",
     )
+    parser.add_argument(
+        "--plot-only",
+        action="store_true",
+        help="勾配を再計算せず、既存の--output-ncからPNGだけを作成する",
+    )
     return parser
 
 
 def main() -> None:
     """既定値またはコマンドライン指定に従って勾配計算と描画を実行する。"""
     args = _parser().parse_args()
+    if args.plot_only:
+        gradient_nc = args.output_nc.expanduser()
+        if not gradient_nc.is_file():
+            raise FileNotFoundError(
+                f"PNG描画元の勾配NetCDFがありません: {gradient_nc}"
+            )
+        gradient_png = plot_gradients(
+            input_nc=gradient_nc,
+            output_png=args.output_png,
+            ssh_name=args.ssh_var,
+            latitude_name=args.lat_var,
+            longitude_name=args.lon_var,
+            slope_percentile=args.percentile,
+            dpi=args.dpi,
+        )
+        print(f"確認用PNGを保存しました: {gradient_png}")
+        return
+
     create_japan_gradients(
         input_nc=args.input,
         output_nc=args.output_nc,
