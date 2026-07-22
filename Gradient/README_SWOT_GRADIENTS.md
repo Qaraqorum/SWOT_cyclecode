@@ -34,33 +34,86 @@ python -m pip install -r requirements.txt
 
 ## 基本的な実行方法
 
+### 1. Cycle 002の観測を日本近海に限定して結合
+
+前処理スクリプト `combine_japan_ssh_cycle.py` は、既定で次の場所を読みます。
+
+```text
+/home/kuwabara/SwotData/Japan/Cycle_002
+```
+
+北緯20～50度・東経110～160度に含まれる観測を抽出し、次のファイルへ
+結合します。
+
+```text
+/home/kuwabara/SwotData/Japan/JapanSSHdata002.nc
+```
+
+既定値をそのまま使う場合：
+
+```bash
+python combine_japan_ssh_cycle.py
+```
+
+パスと範囲を明示する場合：
+
+```bash
+python combine_japan_ssh_cycle.py \
+  --input-dir /home/kuwabara/SwotData/Japan/Cycle_002 \
+  --output /home/kuwabara/SwotData/Japan/JapanSSHdata002.nc \
+  --lat-min 20 --lat-max 50 \
+  --lon-min 110 --lon-max 160
+```
+
+日本近海の経度は西経ではなく東経です。そのため、コードではE110～160を
+使用しています。入力ディレクトリにBasic・Expert・Unsmoothedなど複数種類の
+NetCDFが混在する場合は、次のようにファイル名を限定してください。
+
+```bash
+python combine_japan_ssh_cycle.py --pattern '*Expert*.nc'
+```
+
+この前処理でも再グリッド化、補間、平滑化、間引きは行いません。対象範囲と
+交差する元の `num_lines` だけを残し、同一ライン上の範囲外ピクセルをNaNに
+します。約600ファイルを1ファイルずつ逐次処理するため、全観測を一度に
+メモリへ読み込みません。
+
+出力には `latitude`、`longitude`、`time`、`ssh_karin_2` に加え、元ファイルと
+元ラインを追跡する `source_file_index`、`source_line_index` を保存します。
+勾配計算スクリプトは `source_file_index` を参照し、別の入力ファイルに属する
+ライン同士をAlong・Oblique方向の隣接点として扱いません。各元ファイルの
+最終ラインでは、同じファイル内の直前ラインによる後方差分を使います。
+
+### 2. 結合した日本近海SSHから勾配を計算
+
 NetCDFの作成とPNGの描画を一括実行する場合：
 
-```powershell
-python swot_ssh_gradients.py all INPUT_SWOT.nc `
-  --output-nc swot_ssh_gradients_2km.nc `
+```bash
+python swot_ssh_gradients.py all \
+  /home/kuwabara/SwotData/Japan/JapanSSHdata002.nc \
+  --output-nc swot_ssh_gradients_2km.nc \
   --output-png swot_gradients_map.png
 ```
 
 勾配計算とNetCDF保存だけを実行する場合：
 
-```powershell
-python swot_ssh_gradients.py compute INPUT_SWOT.nc `
+```bash
+python swot_ssh_gradients.py compute INPUT_SWOT.nc \
   --output-nc swot_ssh_gradients_2km.nc
 ```
 
 保存済みNetCDFからPNGだけを作成する場合：
 
-```powershell
-python swot_ssh_gradients.py plot swot_ssh_gradients_2km.nc `
+```bash
+python swot_ssh_gradients.py plot swot_ssh_gradients_2km.nc \
   --output-png swot_gradients_map.png
 ```
 
 SSH変数名の既定値は `ssh_karin_2` です。製品内の変数名が異なる場合は、
 次のように指定します。
 
-```powershell
-python swot_ssh_gradients.py all INPUT_SWOT.nc `
+```bash
+python swot_ssh_gradients.py all INPUT_SWOT.nc \
   --ssh-var SSH_VARIABLE_NAME
 ```
 
