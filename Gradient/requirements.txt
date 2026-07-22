@@ -4,3 +4,4 @@ netCDF4>=1.6
 pyproj>=3.6
 matplotlib>=3.8
 dask[array]>=2024.1
+global-land-mask>=1.0.0
