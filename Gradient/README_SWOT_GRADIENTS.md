@@ -30,7 +30,7 @@ python -m pip install -r requirements.txt
 ```
 
 主な依存パッケージは `xarray`、`numpy`、`netCDF4`、`pyproj`、
-`matplotlib`、`dask[array]` です。
+`matplotlib`、`dask[array]`、`global-land-mask` です。
 
 ## 基本的な実行方法
 
@@ -125,6 +125,46 @@ python gradient_sshJp1.py \
 入力NCで必須となる変数は `ssh_karin_2`、`latitude`、`longitude` です。
 `time`、`source_file_index`、`source_line_index` が存在する場合は出力へ保持し、
 特に `source_file_index` は異なる元ファイル間の差分を防ぐために使用します。
+
+### 3. 全パス重複平均によるJp3共通格子製品
+
+`gradient_sshJp3.py` は、対象海域の有限な全SSH観測をEPSG:6933上の
+2 km共通セルへ割り当て、同じセルへ入る複数パスの値を算術平均します。
+平滑化や観測点の間引きは行いません。
+
+```bash
+python gradient_sshJp3.py
+```
+
+既定の入出力先は次のとおりです。
+
+```text
+入力NC  : /home/kuwabara/SWOTCode/SSHJapan/JapanSSHdata002.nc
+出力NC  : /home/kuwabara/SWOTCode/Gradient/gradient_sshJp3.nc
+SSH画像 : /home/kuwabara/SWOTCode/Gradient/ssh_heightJp3.png
+勾配画像: /home/kuwabara/SWOTCode/Gradient/gradient_sshJp3.png
+```
+
+SSH画像は、陸域を含む全観測平均と、`global-land-mask`で海洋と判定された
+観測だけを平均して-100～100 mに限定したSSHの2パネルです。配色は負を青、
+0を白、正を赤とします。
+
+Jp3の勾配は平均後の共通格子で計算します。
+
+```text
+Along(i,j)   = [SSH(i+1,j)   - SSH(i,j)] / 距離 × 1e6
+Cross(i,j)   = [SSH(i,j+1)   - SSH(i,j)] / 距離 × 1e6
+Oblique(i,j) = [SSH(i+1,j+1) - SSH(i,j)] / 距離 × 1e6
+```
+
+Obliqueは右斜め前セルとの差を直接計算し、AlongとCrossの加算では作りません。
+全勾配の保存単位はµradです。PNGのカラーバーは-10～10 µradに固定し、
+絶対値が10 µrad以上のセルを灰色で表示します。NCには無加工の勾配、
+10 µrad未満だけを残した表示用勾配、閾値超過フラグをすべて保存します。
+
+共通格子へ平均したため、Jp3のAlongは+y、Crossは+x方向であり、個々の
+衛星パス固有の軌道方向ではありません。LSA3解析には、パス別の軌道方位を
+保持したネイティブ勾配を使用してください。
 
 NetCDFの作成とPNGの描画を一括実行する場合：
 
