@@ -86,6 +86,31 @@ python combine_japan_ssh_cycle.py --pattern '*Expert*.nc'
 
 ### 2. 結合した日本近海SSHから勾配を計算
 
+Cycle 002の日本近海データ専用スクリプトは `gradient_sshJp1.py` です。
+引数を省略して実行すると、次の組み合わせで勾配計算とPNG作成を連続実行します。
+
+```text
+入力：/home/kuwabara/SwotData/Japan/JapanSSHdata002.nc
+出力：/home/kuwabara/SwotData/Japan/gradient_sshJp1.nc
+画像：/home/kuwabara/SwotData/Japan/gradient_sshJp1.png
+```
+
+```bash
+python gradient_sshJp1.py
+```
+
+異なる場所の入力ファイルを使う場合は、入出力先を明示できます。
+
+```bash
+python gradient_sshJp1.py \
+  --input /path/to/JapanSSHdata002.nc \
+  --output-nc /path/to/gradient_sshJp1.nc \
+  --output-png /path/to/gradient_sshJp1.png
+```
+
+この専用スクリプトは、下記の汎用スクリプトを既定のパスとファイル名で
+呼び出すものです。計算方法、解像度、欠損値処理は同一です。
+
 NetCDFの作成とPNGの描画を一括実行する場合：
 
 ```bash
