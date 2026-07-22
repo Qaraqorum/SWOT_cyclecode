@@ -60,6 +60,7 @@ def _directional_slope(
     latitude: xr.DataArray,
     longitude: xr.DataArray,
     shifts: dict[str, int],
+    segment_index: xr.DataArray | None = None,
 ) -> xr.DataArray:
     """指定方向の隣接ピクセル差分から海面勾配を計算する。
 
@@ -76,6 +77,9 @@ def _directional_slope(
     shifts
         正方向の隣接点を表すXarrayのシフト指定。沿軌道は1軸、横軌道は
         1軸、斜め方向は2軸を同時に ``-1`` とする。
+    segment_index
+        結合前の入力ファイルを示す沿軌道ライン単位の索引。指定された場合、
+        異なる元ファイル間を跨ぐAlong・Oblique差分を無効にする。
     """
     # 正方向に隣接するSSH・緯度・経度を、座標を変えずにシフトして取得する。
     ssh_next = ssh.shift(shifts)
@@ -92,6 +96,26 @@ def _directional_slope(
     d_backward = _geodesic_distance(lon_prev, lat_prev, longitude, latitude)
     backward = (ssh - ssh_prev) / d_backward
 
+    # 複数スワスの結合データでは、ファイル境界を隣接ピクセルとみなさない。
+    # 横軌道差分だけの場合、segment_indexに横軌道次元がないため常に同一
+    # セグメントとして扱う。
+    same_forward = xr.ones_like(ssh, dtype=bool)
+    same_backward = xr.ones_like(ssh, dtype=bool)
+    if segment_index is not None:
+        segment_shifts = {
+            dim: step for dim, step in shifts.items() if dim in segment_index.dims
+        }
+        if segment_shifts:
+            same_forward = segment_index.shift(segment_shifts) == segment_index
+            reverse_segment_shifts = {
+                dim: -step for dim, step in segment_shifts.items()
+            }
+            same_backward = (
+                segment_index.shift(reverse_segment_shifts) == segment_index
+            )
+            forward = forward.where(same_forward)
+            backward = backward.where(same_backward)
+
     # xarray.shiftは output[i] = input[i - shift] と定義されるため、-1が
     # 正方向の隣接点を表す。後方差分を選択するのは各軸の最終端だけである。
     edge = xr.zeros_like(ssh, dtype=bool)
@@ -102,6 +126,10 @@ def _directional_slope(
             np.arange(ssh.sizes[dim]), dims=(dim,), coords={dim: ssh[dim]}
         )
         edge = edge | (idx == ssh.sizes[dim] - 1)
+
+    # 元ファイルの最終ラインでは、次ファイルを跨ぐ前方差分ではなく、同じ
+    # ファイル内の直接隣接ラインを使った後方差分へ切り替える。
+    edge = edge | ~same_forward
 
     result = xr.where(edge, backward, forward)
     # 距離ゼロや無効な座標による非有限値を除き、SSH・位置情報の欠損を保持する。
@@ -168,12 +196,26 @@ def compute_gradients(
     if lat.dims != ssh.dims or lon.dims != ssh.dims:
         raise ValueError("latitude、longitude、SSHは同一の2次元グリッドが必要です")
 
+    segment_index = ds.get("source_file_index")
+    if segment_index is not None and segment_index.dims != (along_dim,):
+        raise ValueError(
+            "source_file_indexは沿軌道次元だけを持つ1次元変数である必要があります"
+        )
+
     # 3方向をそれぞれ独立に計算する。各結果の形状は元SSHと同一になる。
-    along = _directional_slope(ssh, lat, lon, {along_dim: -1})
-    cross = _directional_slope(ssh, lat, lon, {cross_dim: -1})
+    along = _directional_slope(
+        ssh, lat, lon, {along_dim: -1}, segment_index=segment_index
+    )
+    cross = _directional_slope(
+        ssh, lat, lon, {cross_dim: -1}, segment_index=segment_index
+    )
     # 正の45度対角方向: (line, pixel) -> (line+1, pixel+1)。
     oblique = _directional_slope(
-        ssh, lat, lon, {along_dim: -1, cross_dim: -1}
+        ssh,
+        lat,
+        lon,
+        {along_dim: -1, cross_dim: -1},
+        segment_index=segment_index,
     )
 
     # 次元座標に加え、2次元位置情報とライン時刻を出力へ引き継ぐ。
@@ -181,6 +223,11 @@ def compute_gradients(
     keep.update(ds.coords)
     if "time" in ds:
         keep.add("time")
+    keep.update(
+        name
+        for name in ("source_file_index", "source_line_index")
+        if name in ds
+    )
     out = ds[[name for name in ds.variables if name in keep]].copy()
     out[ssh_name] = ds[ssh_name]  # 元SSHのデータ型と属性を維持する。
     out["slope_along"] = along.astype(np.float32)
@@ -193,8 +240,11 @@ def compute_gradients(
         "coordinates": f"{latitude_name} {longitude_name}",
         "source_ssh": ssh_name,
         "distance_method": "WGS84 ellipsoidal inverse geodesic",
-        "difference_method": "adjacent-pixel forward difference; backward at terminal edge",
+        "difference_method": (
+            "adjacent-pixel forward difference; backward at array or source-file terminal edge"
+        ),
         "resolution_note": "native grid retained; no resampling, smoothing, or interpolation",
+        "file_boundary_note": "differences never cross source_file_index boundaries",
     }
     out["slope_along"].attrs = {
         **common,
