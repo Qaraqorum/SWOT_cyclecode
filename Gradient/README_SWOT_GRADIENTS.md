@@ -108,6 +108,15 @@ python gradient_sshJp1.py \
   --output-png /path/to/gradient_sshJp1.png
 ```
 
+勾配NCが既に作成済みで、PNGだけを作り直す場合：
+
+```bash
+python gradient_sshJp1.py \
+  --plot-only \
+  --output-nc /path/to/gradient_sshJp1.nc \
+  --output-png /path/to/gradient_sshJp1.png
+```
+
 `gradient_sshJp1.py` は勾配計算・NetCDF保存・PNG描画の全処理を内蔵して
 いるため、`swot_ssh_gradients.py` など別のPythonファイルを同じ場所へ置く
 必要はありません。下記の汎用スクリプトと計算方法、解像度、欠損値処理は
