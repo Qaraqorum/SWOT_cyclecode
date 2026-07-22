@@ -108,8 +108,14 @@ python gradient_sshJp1.py \
   --output-png /path/to/gradient_sshJp1.png
 ```
 
-この専用スクリプトは、下記の汎用スクリプトを既定のパスとファイル名で
-呼び出すものです。計算方法、解像度、欠損値処理は同一です。
+`gradient_sshJp1.py` は勾配計算・NetCDF保存・PNG描画の全処理を内蔵して
+いるため、`swot_ssh_gradients.py` など別のPythonファイルを同じ場所へ置く
+必要はありません。下記の汎用スクリプトと計算方法、解像度、欠損値処理は
+同一です。
+
+入力NCで必須となる変数は `ssh_karin_2`、`latitude`、`longitude` です。
+`time`、`source_file_index`、`source_line_index` が存在する場合は出力へ保持し、
+特に `source_file_index` は異なる元ファイル間の差分を防ぐために使用します。
 
 NetCDFの作成とPNGの描画を一括実行する場合：
 
