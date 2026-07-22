@@ -422,14 +422,25 @@ def plot_gradients(
         axes.flat,
         panels,
     ):
-        mesh = axis.pcolormesh(
-            longitude,
-            latitude,
-            np.ma.masked_invalid(values),
-            shading="auto",
+        # pcolormeshはX・Y座標のNaNを受け付けない。日本近海への切り出しで
+        # 緯度・経度もNaNにしたセルが存在するため、有限な座標・値を持つ
+        # 観測点をすべて抽出して描画する。ここで間引きは行っていない。
+        valid = (
+            np.isfinite(longitude)
+            & np.isfinite(latitude)
+            & np.isfinite(values)
+        )
+        mesh = axis.scatter(
+            longitude[valid],
+            latitude[valid],
+            c=values[valid],
+            marker="s",
+            s=0.18,
+            linewidths=0.0,
             cmap=colormap,
             vmin=value_min,
             vmax=value_max,
+            rasterized=True,
         )
         axis.set_title(title)
         axis.set_xlabel("Longitude (degrees east)")
